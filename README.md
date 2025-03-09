@@ -189,8 +189,8 @@ When creating a processor with `createInstance()`, you can provide:
 - `onContentStart`: Called when content outside think blocks starts
 - `onContentChunk`: Called with each chunk outside think blocks
 - `onContentFinish`: Called when content is finished, with optional parsed JSON
-- `onAllComplete`: Called when all processing is complete
-- `onError`: Called if an error occurs
+- `onFinish`: Called when all processing is complete
+- `onFailure`: Called if an error occurs
 
 ## How It Works
 
