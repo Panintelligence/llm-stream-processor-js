@@ -1,0 +1,37 @@
+{
+  "name": "@mingzilla/llm-stream-processor-js",
+  "version": "0.1.0",
+  "description": "A lightweight utility for processing streaming responses from LLMs with <think> block handling",
+  "main": "llm-stream-processor.js",
+  "types": "llm-stream-processor.d.ts",
+  "files": [
+    "llm-stream-processor.js",
+    "llm-stream-processor.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "publish": "bash ./publish.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mingzilla/llm-stream-processor-js.git"
+  },
+  "keywords": [
+    "llm",
+    "streaming",
+    "think",
+    "processor",
+    "parser",
+    "ai",
+    "openai",
+    "anthropic",
+    "claude"
+  ],
+  "author": "Ming Huang (mingzilla)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mingzilla/llm-stream-processor-js/issues"
+  },
+  "homepage": "https://github.com/mingzilla/llm-stream-processor-js#readme"
+}
