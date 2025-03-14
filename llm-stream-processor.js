@@ -1,8 +1,18 @@
 /**
- * Processes streaming responses from LLM APIs, handling think blocks and content.
- * Parses the stream for <think> and </think> tags and accumulates text appropriately.
+ * LlmStreamProcessor
+ *
+ * A lightweight utility for processing streaming responses from Large Language Models (LLMs).
+ * Specifically designed to handle <think> blocks and content separation with support for
+ * Server-Sent Events (SSE) common in LLM API responses.
  */
 class LlmStreamProcessor {
+    /**
+     * Creates a new LlmStreamProcessor instance
+     *
+     * @param {Object} options - Configuration options
+     * @param {string} [options.chunkPrefix] - Prefix to strip from each chunk (e.g., "data: ")
+     * @param {string} [options.endDelimiter] - String that signals the end of the stream (e.g., "[DONE]")
+     */
     constructor(options = {}) {
         // State tracking
         this.isProcessingStarted = false;
@@ -16,15 +26,15 @@ class LlmStreamProcessor {
         this.rawBuffer = '';
 
         // Callback storage
-        this.onProcessingStarted = null;
-        this.onThinkStarted = null;
+        this.onStart = null;
+        this.onThinkStart = null;
         this.onThinkChunk = null;
-        this.onThinkCompleted = null;
-        this.onContentStarted = null;
+        this.onThinkFinish = null;
+        this.onContentStart = null;
         this.onContentChunk = null;
-        this.onContentFinished = null;
-        this.onAllCompleted = null;
-        this.onError = null;
+        this.onContentFinish = null;
+        this.onFinish = null;
+        this.onFailure = null;
 
         // Configuration options
         this.chunkPrefix = options.chunkPrefix || '';
@@ -37,6 +47,7 @@ class LlmStreamProcessor {
 
     /**
      * Factory method to create a new instance
+     *
      * @param {Object} options - Configuration options
      * @param {string} [options.chunkPrefix] - Prefix to strip from each chunk (e.g., "data: ")
      * @param {string} [options.endDelimiter] - String that signals the end of the stream (e.g., "[DONE]")
@@ -47,41 +58,83 @@ class LlmStreamProcessor {
     }
 
     /**
-     * Process a chunk of data from the stream
+     * Process raw server response that may contain multiple JSON-formatted messages.
+     * This method extracts content from structured server responses before processing.
+     *
+     * USE THIS METHOD when working directly with raw server responses containing JSON.
+     *
+     * @param {string} rawChunk - Raw server chunk response potentially containing multiple JSON messages
+     * @param {Function} onStart - Called when processing begins
+     * @param {Function} onThinkStart - Called when a think block starts
+     * @param {Function} onThinkChunk - Called with each chunk inside a think block
+     * @param {Function} onThinkFinish - Called when a think block completes
+     * @param {Function} onContentStart - Called when content outside think blocks starts
+     * @param {Function} onContentChunk - Called with each chunk outside think blocks
+     * @param {Function} onContentFinish - Called when content is finished
+     * @param {Function} onFinish - Called when all processing is complete
+     * @param {Function} onFailure - Called if an error occurs
+     */
+    processChunk(rawChunk,
+                 onStart,
+                 onThinkStart,
+                 onThinkChunk,
+                 onThinkFinish,
+                 onContentStart,
+                 onContentChunk,
+                 onContentFinish,
+                 onFinish,
+                 onFailure) {
+        const chunk = LlmStreamProcessor.extractChunk(rawChunk);
+        this.read(chunk, onStart,
+            onThinkStart,
+            onThinkChunk,
+            onThinkFinish,
+            onContentStart,
+            onContentChunk,
+            onContentFinish,
+            onFinish,
+            onFailure);
+    }
+
+    /**
+     * Process pre-extracted text content, identifying think blocks and regular content.
+     * Unlike processChunk(), this expects plain text content, not raw JSON responses.
+     *
+     * Use this method only if you've already extracted content from server responses.
      *
      * @param {string} chunk - The chunk of text to process
-     * @param {Function} onProcessingStarted - Called when processing begins
-     * @param {Function} onThinkStarted - Called when a think block starts
+     * @param {Function} onStart - Called when processing begins
+     * @param {Function} onThinkStart - Called when a think block starts
      * @param {Function} onThinkChunk - Called with each chunk inside a think block
-     * @param {Function} onThinkCompleted - Called when a think block completes
-     * @param {Function} onContentStarted - Called when content outside think blocks starts
+     * @param {Function} onThinkFinish - Called when a think block completes
+     * @param {Function} onContentStart - Called when content outside think blocks starts
      * @param {Function} onContentChunk - Called with each chunk outside think blocks
-     * @param {Function} onContentFinished - Called when content is finished
-     * @param {Function} onAllCompleted - Called when all processing is complete
-     * @param {Function} onError - Called if an error occurs
+     * @param {Function} onContentFinish - Called when content is finished
+     * @param {Function} onFinish - Called when all processing is complete
+     * @param {Function} onFailure - Called if an error occurs
      */
     read(chunk,
-         onProcessingStarted,
-         onThinkStarted,
+         onStart,
+         onThinkStart,
          onThinkChunk,
-         onThinkCompleted,
-         onContentStarted,
+         onThinkFinish,
+         onContentStart,
          onContentChunk,
-         onContentFinished,
-         onAllCompleted,
-         onError) {
+         onContentFinish,
+         onFinish,
+         onFailure) {
 
         try {
             // Store callbacks for later use (especially in finalize)
-            this.onProcessingStarted = onProcessingStarted;
-            this.onThinkStarted = onThinkStarted;
+            this.onStart = onStart;
+            this.onThinkStart = onThinkStart;
             this.onThinkChunk = onThinkChunk;
-            this.onThinkCompleted = onThinkCompleted;
-            this.onContentStarted = onContentStarted;
+            this.onThinkFinish = onThinkFinish;
+            this.onContentStart = onContentStart;
             this.onContentChunk = onContentChunk;
-            this.onContentFinished = onContentFinished;
-            this.onAllCompleted = onAllCompleted;
-            this.onError = onError;
+            this.onContentFinish = onContentFinish;
+            this.onFinish = onFinish;
+            this.onFailure = onFailure;
 
             // Process end delimiter if present
             if (this.endDelimiter && chunk.includes(this.endDelimiter)) {
@@ -106,7 +159,7 @@ class LlmStreamProcessor {
             // Start processing if not already started
             if (!this.isProcessingStarted) {
                 this.isProcessingStarted = true;
-                if (onProcessingStarted) onProcessingStarted();
+                if (onStart) onStart();
             }
 
             let remainingChunk = chunk;
@@ -131,7 +184,7 @@ class LlmStreamProcessor {
 
                         // Start think block
                         this.isThinkStarted = true;
-                        if (onThinkStarted) onThinkStarted();
+                        if (onThinkStart) onThinkStart();
                         continue;
                     } else {
                         // No opening tag found, process the rest as regular content
@@ -159,7 +212,7 @@ class LlmStreamProcessor {
 
                         // End think block and notify
                         this.isThinkStarted = false;
-                        if (onThinkCompleted) onThinkCompleted(this.thinkBuffer);
+                        if (onThinkFinish) onThinkFinish(this.thinkBuffer);
 
                         // Start content if not already started for upcoming non-think content
                         this.ensureContentStarted();
@@ -173,13 +226,15 @@ class LlmStreamProcessor {
                 }
             }
         } catch (error) {
-            if (onError) onError(error);
+            if (onFailure) onFailure(error);
         }
     }
 
     /**
      * Process a chunk of think block content
-     * @param {string} chunk The think content chunk to process
+     *
+     * @param {string} chunk - The think content chunk to process
+     * @private
      */
     processThinkChunk(chunk) {
         if (chunk && chunk.length > 0) {
@@ -192,7 +247,9 @@ class LlmStreamProcessor {
 
     /**
      * Process a chunk of content outside think blocks
-     * @param {string} chunk The content chunk to process
+     *
+     * @param {string} chunk - The content chunk to process
+     * @private
      */
     processContentChunk(chunk) {
         if (chunk && chunk.length > 0) {
@@ -206,16 +263,19 @@ class LlmStreamProcessor {
 
     /**
      * Ensure content processing has started
+     *
+     * @private
      */
     ensureContentStarted() {
         if (!this.isContentStarted) {
             this.isContentStarted = true;
-            if (this.onContentStarted) this.onContentStarted();
+            if (this.onContentStart) this.onContentStart();
         }
     }
 
     /**
-     * Finalize processing, triggering appropriate completion callbacks
+     * Finalize processing, triggering appropriate completion callbacks.
+     * Call this method when all chunks have been processed.
      */
     finalize() {
         if (this.isCompleted) return;
@@ -224,7 +284,7 @@ class LlmStreamProcessor {
             // If still in a think block, close it
             if (this.isThinkStarted) {
                 this.isThinkStarted = false;
-                if (this.onThinkCompleted) this.onThinkCompleted(this.thinkBuffer);
+                if (this.onThinkFinish) this.onThinkFinish(this.thinkBuffer);
             }
 
             // Ensure content processing is marked as started
@@ -246,17 +306,89 @@ class LlmStreamProcessor {
             }
 
             // Critical fix: Call the content finished callback
-            if (this.onContentFinished) {
-                this.onContentFinished(this.contentBuffer, parsedJson);
+            if (this.onContentFinish) {
+                this.onContentFinish(this.contentBuffer, parsedJson);
             }
 
             // Mark as completed and trigger completion callback
             this.isCompleted = true;
-            if (this.onAllCompleted) {
-                this.onAllCompleted(this.thinkBuffer, this.contentBuffer, parsedJson);
+            if (this.onFinish) {
+                this.onFinish(this.thinkBuffer, this.contentBuffer, parsedJson);
             }
         } catch (error) {
-            if (this.onError) this.onError(error);
+            if (this.onFailure) this.onFailure(error);
+        }
+    }
+
+    /**
+     * Extract content from raw chunks that might contain JSON structures.
+     * Be aware that the input can be as below, with multiple messages received as one chunk:
+     * ```
+     * {"message":{"role":"assistant","content":"<think>"},"done":false,"index":0}
+     * {"message":{"role":"assistant","content":"\n"},"done":false,"index":1}
+     * ```
+     *
+     * @param {string} chunkText - Raw text possibly containing JSON structures
+     * @returns {string} The extracted content
+     * @static
+     */
+    static extractChunk(chunkText) {
+        const lines = chunkText.split('\n').map(LlmStreamProcessor.cleanLine).filter(line => (line || '').trim() !== '');
+
+        const fns = [
+            (json) => json['message']['content'], // same as ollama, most common json format
+            (json) => json['choices'][0]['delta']['content'], // this is the openai solution
+            (json) => json['response'], // ollama old solution
+        ];
+
+        let result = '';
+
+        for (const line of lines) {
+            const chunkJson = LlmStreamProcessor.stringToJson(line);
+            for (const fn of fns) {
+                let content;
+                try {
+                    content = fn(chunkJson) || '';
+                } catch (ignore) {
+                    content = null;
+                }
+                if (content) {
+                    result += content;
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Clean a line of text, removing SSE prefixes and end delimiters
+     *
+     * @param {string} text - A line of text to clean
+     * @returns {string|null} The cleaned line or null if empty
+     * @static
+     * @private
+     */
+    static cleanLine(text) {
+        if (!text) return null;
+        const t1 = text.startsWith("data: ") ? text.substring(6) : text;
+        return t1.replace(/data: \[DONE\]$/, '');
+    }
+
+    /**
+     * Safely parse a JSON string, returning an empty object if parsing fails
+     *
+     * @param {string} jsonString - The string to parse as JSON
+     * @returns {Object} The parsed JSON object or an empty object if parsing fails
+     * @static
+     * @private
+     */
+    static stringToJson(jsonString) {
+        try {
+            return JSON.parse(jsonString);
+        } catch (error) {
+            return {};
         }
     }
 }

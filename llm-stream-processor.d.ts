@@ -1,5 +1,5 @@
 /**
- * Configuration options for LlmStreamProcessor
+ * Configuration options for the LlmStreamProcessor
  */
 interface LlmStreamProcessorOptions {
     /**
@@ -14,8 +14,9 @@ interface LlmStreamProcessorOptions {
 }
 
 /**
- * Main class for processing LLM streaming responses
- * Handles <think> blocks and content streaming with callback-based processing
+ * A lightweight utility for processing streaming responses from Large Language Models (LLMs).
+ * Specifically designed to handle <think> blocks and content separation with support for
+ * Server-Sent Events (SSE) common in LLM API responses.
  */
 declare class LlmStreamProcessor {
     /**
@@ -23,39 +24,87 @@ declare class LlmStreamProcessor {
      *
      * @param options - Configuration options
      */
+    constructor(options?: LlmStreamProcessorOptions);
+
+    /**
+     * Factory method to create a new instance
+     *
+     * @param options - Configuration options
+     * @returns A new LlmStreamProcessor instance
+     */
     static createInstance(options?: LlmStreamProcessorOptions): LlmStreamProcessor;
 
     /**
-     * Processes a streaming response chunk with enhanced callback control
+     * Process raw server response that may contain multiple JSON-formatted messages.
+     * This method extracts content from structured server responses before processing.
      *
-     * @param chunk - The chunk of text from the streaming response
+     * USE THIS METHOD when working directly with raw server responses containing JSON.
+     *
+     * @param rawChunk - Raw server chunk response potentially containing multiple JSON messages
      * @param onStart - Called when processing begins
      * @param onThinkStart - Called when a think block starts
-     * @param onThinkChunk - Called with new content from inside think blocks (only the new chunk)
-     * @param onThinkFinish - Called when a think block ends with the full think text
-     * @param onContentStart - Called when content (non-think) starts
-     * @param onContentChunk - Called with new content outside think blocks (only the new chunk)
-     * @param onContentFinish - Called with final content text and parsed JSON (null if not JSON)
-     * @param onFinish - Called when all content is processed
-     * @param onFailure - Called when an error occurs
+     * @param onThinkChunk - Called with each chunk inside a think block
+     * @param onThinkFinish - Called when a think block completes
+     * @param onContentStart - Called when content outside think blocks starts
+     * @param onContentChunk - Called with each chunk outside think blocks
+     * @param onContentFinish - Called when content is finished, with full content and any parsed JSON
+     * @param onFinish - Called when all processing is complete
+     * @param onFailure - Called if an error occurs
      */
-    read(
-        chunk: string,
-        onStart: () => void,
-        onThinkStart: () => void,
-        onThinkChunk: (chunk: string) => void,
-        onThinkFinish: (fullThinkText: string) => void,
-        onContentStart: () => void,
-        onContentChunk: (chunk: string) => void,
-        onContentFinish: (fullContentText: string, parsedJson: any | null) => void,
-        onFinish: (fullThinkText: string, fullContentText: string, parsedJson: any | null) => void,
-        onFailure: (error: Error) => void
+    processChunk(
+        rawChunk: string,
+        onStart?: () => void,
+        onThinkStart?: () => void,
+        onThinkChunk?: (chunk: string) => void,
+        onThinkFinish?: (fullThinkText: string) => void,
+        onContentStart?: () => void,
+        onContentChunk?: (chunk: string) => void,
+        onContentFinish?: (fullContentText: string, parsedJson: any | null) => void,
+        onFinish?: (fullThinkText: string, fullContentText: string, parsedJson: any | null) => void,
+        onFailure?: (error: Error) => void
     ): void;
 
     /**
-     * Finalizes the processing and triggers completion callbacks
-     * Call this method when you know the stream has completed
-     * Uses the callbacks provided in the most recent read() call
+     * Process pre-extracted text content, identifying think blocks and regular content.
+     * Unlike processChunk(), this expects plain text content, not raw JSON responses.
+     *
+     * @param chunk - The chunk of text to process
+     * @param onStart - Called when processing begins
+     * @param onThinkStart - Called when a think block starts
+     * @param onThinkChunk - Called with each chunk inside a think block
+     * @param onThinkFinish - Called when a think block completes
+     * @param onContentStart - Called when content outside think blocks starts
+     * @param onContentChunk - Called with each chunk outside think blocks
+     * @param onContentFinish - Called when content is finished, with full content and any parsed JSON
+     * @param onFinish - Called when all processing is complete
+     * @param onFailure - Called if an error occurs
+     */
+    read(
+        chunk: string,
+        onStart?: () => void,
+        onThinkStart?: () => void,
+        onThinkChunk?: (chunk: string) => void,
+        onThinkFinish?: (fullThinkText: string) => void,
+        onContentStart?: () => void,
+        onContentChunk?: (chunk: string) => void,
+        onContentFinish?: (fullContentText: string, parsedJson: any | null) => void,
+        onFinish?: (fullThinkText: string, fullContentText: string, parsedJson: any | null) => void,
+        onFailure?: (error: Error) => void
+    ): void;
+
+    /**
+     * Finalize processing, triggering appropriate completion callbacks.
+     * Call this method when all chunks have been processed.
      */
     finalize(): void;
+
+    /**
+     * Extract content from raw chunks that might contain JSON structures.
+     *
+     * @param chunkText - Raw text possibly containing JSON structures
+     * @returns The extracted content
+     */
+    static extractChunk(chunkText: string): string;
 }
+
+export = LlmStreamProcessor;

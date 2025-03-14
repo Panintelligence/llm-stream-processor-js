@@ -87,7 +87,7 @@ ApiClient.stream(
   () => console.log('Stream started'), // onStart
   (chunk) => {
     // Process each chunk through the LLM processor
-    processor.read(
+    processor.processChunk(
       chunk,
       () => console.log('Processing started'),
       () => console.log('Think block started'),
@@ -139,7 +139,7 @@ const processor = LlmStreamProcessor.createInstance({
 The processor automatically attempts to parse JSON in the content:
 
 ```javascript
-processor.read(
+processor.processChunk(
   chunk,
   // ...other callbacks...
   (fullContent, parsedJson) => {
@@ -170,7 +170,8 @@ The main class for processing LLM streaming responses.
 
 #### Instance Methods
 
-- `read(chunk, callbacks...)`: Process a chunk of text from the stream
+- `processChunk(rawChunk, callbacks...)`: Process raw server response that may contain multiple JSON-formatted messages
+- `read(chunk, callbacks...)`: Process a chunk of plain text content, not raw JSON responses.
 - `finalize()`: Finalize processing and trigger completion callbacks
 
 #### Configuration Options
@@ -180,7 +181,7 @@ When creating a processor with `createInstance()`, you can provide:
 - `chunkPrefix`: String prefix to strip from each chunk (e.g., "data: " for SSE)
 - `endDelimiter`: String that signals the end of the stream (e.g., "[DONE]")
 
-#### Callback Parameters for `read()`
+#### Callback Parameters for `processChunk` and `read()`
 
 - `onStart`: Called when processing begins
 - `onThinkStart`: Called when a think block starts
